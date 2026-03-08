@@ -26,6 +26,7 @@ project(Terra2D)
 add_subdirectory(thirdparty/raylib-5.0)
 add_subdirectory(thirdparty/imgui-1.89.7-docking)
 add_subdirectory(thirdparty/rlimgui)
+add_subdirectory(thirdparty/FastNoiseSIMD)
 
 # MY_SOURCES is defined to be a list of all the source files for my game 
 # DON'T ADD THE SOURCES BY HAND, they are already added with this macro
@@ -77,4 +78,4 @@ target_include_directories("${CMAKE_PROJECT_NAME}" PUBLIC "${CMAKE_CURRENT_SOURC
 target_include_directories("${CMAKE_PROJECT_NAME}" PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src/platform")
 
 # Link libraries statically
-target_link_libraries("${CMAKE_PROJECT_NAME}" PRIVATE raylib_static imgui rlimgui)
+target_link_libraries("${CMAKE_PROJECT_NAME}" PRIVATE raylib_static imgui rlimgui fastNoiseSIMD)
