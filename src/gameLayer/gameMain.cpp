@@ -6,6 +6,8 @@
 #include <iostream>
 #include "gameMain.h"
 #include <raymath.h>
+#include <worldGenerator.h>
+#include <imgui.h>
 
 struct GameData
 {
@@ -16,17 +18,12 @@ struct GameData
 
 AssetManager assetManager;
 
+// ========== INIT ==========
 bool initGame()
 {
 	assetManager.loadAll();
 
-	gameData.gameMap.create(700, 500);
-
-	for (int y = 0; y < gameData.gameMap.h; y++)
-		for (int x = 0; x < gameData.gameMap.w; x++)
-		{
-			gameData.gameMap.getBlocUnsafe(x, y).type = Block::dirt;
-		}
+	generateWorld(gameData.gameMap);
 
 	gameData.camera.target = { 0, 0 };
 	gameData.camera.rotation = 0.0f;
@@ -35,6 +32,7 @@ bool initGame()
 	return true;
 }
 
+// ========== UPDATE ==========
 bool updateGame()
 {
 	float deltaTime = GetFrameTime();
@@ -45,11 +43,12 @@ bool updateGame()
 	ClearBackground({ 75, 75, 150, 255 });
 
 #pragma region camera movement
-
-	if (IsKeyDown(KEY_A)) { gameData.camera.target.x -= 7.0f * deltaTime; }
-	if (IsKeyDown(KEY_D)) { gameData.camera.target.x += 7.0f * deltaTime; }
-	if (IsKeyDown(KEY_W)) { gameData.camera.target.y -= 7.0f * deltaTime; }
-	if (IsKeyDown(KEY_S)) { gameData.camera.target.y += 7.0f * deltaTime; }
+	
+	static float CAMERA_SPEED = 10;
+	if (IsKeyDown(KEY_A)) { gameData.camera.target.x -= CAMERA_SPEED * deltaTime; }
+	if (IsKeyDown(KEY_D)) { gameData.camera.target.x += CAMERA_SPEED * deltaTime; }
+	if (IsKeyDown(KEY_W)) { gameData.camera.target.y -= CAMERA_SPEED * deltaTime; }
+	if (IsKeyDown(KEY_S)) { gameData.camera.target.y += CAMERA_SPEED * deltaTime; }
 
 #pragma endregion
 
@@ -120,6 +119,13 @@ bool updateGame()
 	);
 
 	EndMode2D();
+
+	ImGui::Begin("GameControll");
+
+	ImGui::SliderFloat("Camera zoom:", &gameData.camera.zoom, 10, 150);
+	ImGui::SliderFloat("Camera speed:", &CAMERA_SPEED, 5, 100);
+
+	ImGui::End();
 #pragma	endregion
 
 	DrawFPS(10, 10);
@@ -127,6 +133,7 @@ bool updateGame()
 	return true;
 }
 
+// ========== CLOSE ==========
 void closeGame()
 {
 }

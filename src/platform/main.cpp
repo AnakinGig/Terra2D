@@ -56,58 +56,6 @@ int main()
 		}
 
 	#pragma region imgui windows
-		ImGui::Begin("ImGui Settings");
-
-		ImGui::Text("Settings for ImGui");
-		ImGui::Separator();
-
-		ImGui::Text("Font Size");
-		ImGui::SameLine();
-		ImGui::InputFloat("FontSize", &imGuiFontSize, 0.1, 0.5, "%.1f");
-		io.FontGlobalScale = imGuiFontSize;
-
-		ImGui::Text("Theme");
-		ImGui::SameLine();
-		if (ImGui::Button("Dark"))
-		{
-			ImGui::StyleColorsDark();
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Light"))
-		{
-			ImGui::StyleColorsLight();
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Classic"))
-		{
-			ImGui::StyleColorsClassic();
-		}
-
-		ImGui::End();
-
-
-		ImGui::Begin("Debug");
-
-		ImGui::Text("Game Debug");
-		ImGui::Separator();
-
-		if (ImGui::Button("Kill player"))
-		{
-			std::cout << "Player killed." << std::endl;
-		}
-
-		ImGui::Text("Speed");
-		ImGui::SameLine();
-		ImGui::TextDisabled("(?)");
-
-		if (ImGui::IsItemHovered())
-		{
-			ImGui::BeginTooltip();
-			ImGui::Text("Controls how fast the player moves.");
-			ImGui::EndTooltip();
-		}
-
-		ImGui::End();
 	#pragma endregion
 
 	#pragma region imgui
