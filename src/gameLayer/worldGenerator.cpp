@@ -1,6 +1,46 @@
 #include "worldGenerator.h"
 #include "randomStuff.h"
 #include <FastNoiseSIMD.h>
+#include <structure.h>
+#include <saveMap.h>
+
+// TODO : Refactor the code 
+
+// create the basic world shape with stone
+auto createStoneLayer = [&]()
+	{
+
+	};
+
+// TODO : create one montain with 
+auto createOneMountain = [&]()
+	{
+
+	};
+
+// create the dirt / grassblock layer above stone
+auto addDirtLayer = [&]()
+	{
+
+	};
+
+// create caves
+auto addCaves = [&]()
+	{
+
+	};
+
+// create desert biome
+auto addDesertBiome = [&]()
+	{
+
+	};
+
+// populate world with trees
+auto addTrees = [&]()
+	{
+
+	};
 
 void generateWorld(GameMap& gameMap, int seed)
 {
@@ -14,6 +54,9 @@ void generateWorld(GameMap& gameMap, int seed)
 	int desertStart = getRandomInt(rng, 10, w - 210);
 	int desertEnd = desertStart + 100 + getRandomInt(rng, 100, 200);
 	if (desertEnd > w) { desertEnd = w;  }
+
+	Structure treeStructure;
+	bool treeLoaded = loadBlockDataFromFile(treeStructure.mapData, treeStructure.w, treeStructure.h, RESOURCES_PATH "structures/tree.bin");
 
 	std::unique_ptr<FastNoiseSIMD> dirtNoiseGenerator(FastNoiseSIMD::NewFastNoiseSIMD());
 	std::unique_ptr<FastNoiseSIMD> caveNoiseGenerator(FastNoiseSIMD::NewFastNoiseSIMD());
@@ -122,6 +165,7 @@ void generateWorld(GameMap& gameMap, int seed)
 		}
 #pragma	endregion
 
+#pragma region draw layers
 		int dirtHeight = dirtOffsetStart + (dirtOffsetEnd - dirtOffsetStart) * dirtNoise[x];
 		dirtHeight = stoneHeight - dirtHeight;
 
@@ -184,6 +228,7 @@ void generateWorld(GameMap& gameMap, int seed)
 
 	FastNoiseSIMD::FreeNoiseSet(dirtNoise);
 	FastNoiseSIMD::FreeNoiseSet(caveNoise);
+#pragma	endregion
 
 #pragma region perlin worms
 
@@ -248,6 +293,46 @@ void generateWorld(GameMap& gameMap, int seed)
 
 			radius += (getRandomFloat(rng, -0.2, 0.2));
 			radius = std::clamp(radius, 2.2f, 8.5f);
+		}
+	}
+
+#pragma endregion
+
+#pragma region fill tree
+	if (treeLoaded)
+	{
+		for (int x = 0; x < w; x++)
+		{
+			if (getRandomChance(rng, 0.08))
+			{
+				for (int y = 0; y < h; y++)
+				{
+					auto type = gameMap.getBlocUnsafe(x, y).type;
+					if (type == Block::air)
+					{
+						continue;
+					}
+
+					if (type == Block::grassBlock)
+					{
+						//Plant tree
+						Vector2 spawnPos{ (float)x, (float)y };
+
+						spawnPos.x -= treeStructure.w / 2;
+						spawnPos.y -= treeStructure.h;
+
+						treeStructure.pasteIntoMap(gameMap, spawnPos);
+
+						x += 3; //prevent clipping trees
+
+						break;
+					}
+					else
+					{
+						break;
+					}
+				}
+			}
 		}
 	}
 
