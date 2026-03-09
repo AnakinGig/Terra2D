@@ -26,6 +26,8 @@ struct GameData
 
 	char saveName[100] = {};
 
+	PhysicalEntity player;
+
 }gameData;
 
 AssetManager assetManager;
@@ -41,7 +43,11 @@ bool initGame()
 
 	gameData.camera.target = { 20, 120 };
 	gameData.camera.rotation = 0.0f;
-	gameData.camera.zoom = 50;
+	gameData.camera.zoom = 100;
+
+	gameData.player.teleport({20, 120});
+	gameData.player.transform.w = 0.9f;
+	gameData.player.transform.h = 1.8f;
 
 	return true;
 }
@@ -60,11 +66,23 @@ bool updateGame()
 
 #pragma region camera movement
 	
-	static float CAMERA_SPEED = 50;
-	if (IsKeyDown(KEY_A)) { gameData.camera.target.x -= CAMERA_SPEED * deltaTime; }
-	if (IsKeyDown(KEY_D)) { gameData.camera.target.x += CAMERA_SPEED * deltaTime; }
-	if (IsKeyDown(KEY_W)) { gameData.camera.target.y -= CAMERA_SPEED * deltaTime; }
-	if (IsKeyDown(KEY_S)) { gameData.camera.target.y += CAMERA_SPEED * deltaTime; }
+	static float CAMERA_SPEED = 25;
+	if (IsKeyDown(KEY_A)) { gameData.player.transform.pos.x -= CAMERA_SPEED * GetFrameTime(); }
+	if (IsKeyDown(KEY_D)) { gameData.player.transform.pos.x += CAMERA_SPEED * GetFrameTime(); }
+	if (IsKeyDown(KEY_W)) { gameData.player.transform.pos.y -= CAMERA_SPEED * GetFrameTime(); }
+	if (IsKeyDown(KEY_S)) { gameData.player.transform.pos.y += CAMERA_SPEED * GetFrameTime(); }
+
+#pragma endregion
+
+#pragma region entities
+
+	gameData.player.applyGravity();
+
+	gameData.player.updateForces(deltaTime);
+
+	gameData.camera.target = gameData.player.transform.pos;
+
+	gameData.player.updateFinal();
 
 #pragma endregion
 
@@ -198,6 +216,24 @@ bool updateGame()
 
 		DrawRectangleLinesEx(rect, 0.1, { 20, 101, 250, 145 });
 	}
+
+	//Player sprite
+	Transform2D playerSprite = gameData.player.transform;
+	playerSprite.w = 1;
+	playerSprite.h = 2;
+
+	playerSprite.pos.y -= (playerSprite.h - gameData.player.transform.h) / 2;
+
+	DrawTexturePro(
+		assetManager.player,
+		{ 0, 0, (float)assetManager.player.width, (float)assetManager.player.height },
+		playerSprite.getAABB(),
+		{ 0, 0 },	//origin
+		0.0f, //rotation
+		WHITE //tint
+	);
+
+	DrawRectangleLinesEx(gameData.player.transform.getAABB(), 0.1, {20, 101, 250, 120});
 
 	EndMode2D();
 
