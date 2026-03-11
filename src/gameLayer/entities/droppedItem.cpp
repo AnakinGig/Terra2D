@@ -5,16 +5,28 @@
 
 void DroppedItem::render(AssetManager& assetManager)
 {
-	auto aabb = getRectangleForEntity(physics.transform, 1, 1);
+	float renderSize = isBlock(itemType) ? 1 : 0.5f;
+	auto aabb = getRectangleForEntity(physics.transform, renderSize, renderSize);
+
+	float physicSize = isBlock(itemType) ? 0.8 : 0.5f;
+	physics.transform.w = physicSize;
+	physics.transform.h = physicSize;
+
+	Texture2D texture = getTextureForItemType(itemType, assetManager);
+	Rectangle rectangle = getTextureCoordonatesForItemType(itemType);
 
 	DrawTexturePro(
-		assetManager.textures,
-		getTextureAtlas(itemType, 4, 32, 32),
+		texture,
+		rectangle, //source
 		aabb, //dest
 		{ 0, 0 }, //origin
 		0.0f, // rotation
 		WHITE // tint
 	);
+
+	// Draw collision box
+	//DrawRectangleLinesEx(physics.transform.getAABB(), 0.1, {255, 0, 0, 120});
+
 }
 
 bool DroppedItem::update(float deltaTime, EntityUpdateData entityUpdateData)

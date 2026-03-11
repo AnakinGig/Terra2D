@@ -29,6 +29,7 @@ struct EntityUpdateData
 struct Entity
 {
 	PhysicalEntity physics;
+	float life = 1;
 
 	Vector2& getPosition()
 	{
@@ -45,4 +46,6 @@ struct Entity
 	virtual bool update(float deltaTime, EntityUpdateData entityUpdateData) = 0;
 
 	virtual int getEntityType() = 0;
+
+	virtual float getMaxLife() = 0;
 };

@@ -8,6 +8,7 @@ struct AssetManager
 	Texture2D frame = {};
 	Texture2D player = {};
 	Texture2D slime = {};
+	Texture2D items = {};
 
 	void loadAll();
 };

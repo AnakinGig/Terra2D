@@ -4,6 +4,7 @@
 #include <raylib.h>
 #include <random>
 #include <entity.h>
+#include <items.h>
 
 struct AssetManager;
 
@@ -23,4 +24,6 @@ struct DroppedItem : Entity
 	bool update(float deltaTime, EntityUpdateData entityUpdateData);
 	
 	int getEntityType() { return EntityType_DroppedItem; }
+
+	float getMaxLife() { return 1; }
 };

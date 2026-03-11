@@ -17,6 +17,9 @@
 #include <entityIdHolder.h>
 #include <randomStuff.h>
 #include <player.h>
+#include <items.h>
+#include <audio.h>
+#include <settings.h>
 
 struct GameData
 {
@@ -66,13 +69,14 @@ void spawnDroppedItem(Vector2 position, int type)
 
 bool initGame()
 {
+	Audio::init();
 	assetManager.loadAll();
 
 	generateWorld(gameData.gameMap);
 
 	gameData.camera.target = { 20, 120 };
 	gameData.camera.rotation = 0.0f;
-	gameData.camera.zoom = 100;
+	gameData.camera.zoom = 50;
 
 	gameData.player.physics.teleport({20, 60});
 	gameData.player.physics.transform.w = 0.9f;
@@ -86,6 +90,7 @@ bool initGame()
 // ========== UPDATE ==========
 bool updateGame()
 {
+	Audio::update();
 	float deltaTime = GetFrameTime();
 	if (deltaTime > 1.f / 5) { deltaTime = 1 / 5.f; }
 
@@ -96,7 +101,7 @@ bool updateGame()
 	if (IsKeyPressed(KEY_F10)) { showImgui = !showImgui; }
 
 #pragma region camera movement
-	
+
 	static float CAMERA_SPEED = 10;
 	if (IsKeyDown(KEY_A)) { gameData.player.physics.transform.pos.x -= CAMERA_SPEED * GetFrameTime(); }
 	if (IsKeyDown(KEY_D)) { gameData.player.physics.transform.pos.x += CAMERA_SPEED * GetFrameTime(); }
@@ -110,21 +115,52 @@ bool updateGame()
 #pragma region entities
 
 	auto updateEntityPhysics = [&](auto& entity, bool applyGravity = true)
-	{
-		if (applyGravity) { entity.physics.applyGravity(); }
+		{
+			if (applyGravity) { entity.physics.applyGravity(); }
 
-		entity.physics.updateForces(deltaTime);
+			entity.physics.updateForces(deltaTime);
 
-		entity.physics.resolveConstrains(gameData.gameMap);
+			entity.physics.resolveConstrains(gameData.gameMap);
 
-		entity.physics.updateFinal();
-	};
+			entity.physics.updateFinal();
+		};
 
 	//player
 	updateEntityPhysics(gameData.player, false);
 
 	gameData.camera.target = gameData.player.physics.transform.pos;
-	
+
+	float zoom = gameData.camera.zoom;
+
+	float screenWidth = GetScreenWidth();
+	float screenHeight = GetScreenHeight();
+
+	float halfViewWidth = (screenWidth * 0.5f) / zoom;
+	float halfViewHeight = (screenHeight * 0.5f) / zoom;
+
+	float minX = halfViewWidth;
+	float maxX = gameData.gameMap.w - halfViewWidth;
+	float minY = halfViewHeight;
+	float maxY = gameData.gameMap.h - halfViewHeight;
+
+	if (maxX < minX)
+	{
+		gameData.camera.target.x = gameData.gameMap.w * 0.5f;
+	}
+	else
+	{
+		gameData.camera.target.x = Clamp(gameData.camera.target.x, minX, maxX);
+	}
+
+	if (maxY < minY)
+	{
+		gameData.camera.target.y = gameData.gameMap.h * 0.5f;
+	}
+	else
+	{
+		gameData.camera.target.y = Clamp(gameData.camera.target.y, minY, maxY);
+	}
+
 	//update all entities
 	std::ranlux24_base rng(std::random_device{}());
 
@@ -140,7 +176,7 @@ bool updateGame()
 
 		bool shouldKill = false;
 
-		if (!it->second->update(deltaTime, entityUpdateData))
+		if (!it->second->update(deltaTime, entityUpdateData) || it->second->life <= 0)
 		{
 			shouldKill = true;
 		}
@@ -198,6 +234,7 @@ bool updateGame()
 				if (b->type)
 				{
 					spawnDroppedItem({ (float)blockX + getRandomFloat(rng, 0.4, 0.6), (float)blockY + 0.5f}, b->type);
+					Audio::playSound(Audio::breakBlock);
 				}
 
 				*b = {};
@@ -210,7 +247,11 @@ bool updateGame()
 			auto b = gameData.gameMap.getBlocSafe(blockX, blockY);
 			if (b)
 			{
-				b->type = gameData.creativeSelectedBlock;
+				if (b->type != gameData.creativeSelectedBlock)
+				{
+					b->type = gameData.creativeSelectedBlock;
+					Audio::playSound(Audio::placeBlock);
+				}
 			}
 		}
 
@@ -334,6 +375,18 @@ bool updateGame()
 		{
 			spawnSlime({ 18, 60 });
 		}
+		ImGui::SameLine();
+		if (ImGui::Button("Hurt a slime"))
+		{
+			for (auto& e : gameData.entities.entities)
+			{
+				if (e.second->getEntityType() == EntityType::EntityType_Slime)
+				{
+					e.second->life -= 3;
+					break;
+				}
+			}
+		}
 
 		if (ImGui::Button("Copy"))
 		{
@@ -359,6 +412,23 @@ bool updateGame()
 			path += ".bin";
 
 			loadBlockDataFromFile(gameData.copyStructure.mapData, gameData.copyStructure.w, gameData.copyStructure.h, path.c_str());
+		}
+
+		ImGui::Separator();
+
+		ImGui::SliderFloat("Master volume", &getSettings().masterVolume, 0, 1);
+		ImGui::SliderFloat("Sound volume", &getSettings().soundsVolume, 0, 1);
+		ImGui::SliderFloat("Music volume", &getSettings().musicVolume, 0, 1);
+
+
+		if (ImGui::Button("Play music forest"))
+		{
+			Audio::playMusic(Audio::musicForest);
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Play music desert"))
+		{
+			Audio::playMusic(Audio::musicDesert);
 		}
 
 		ImGui::Separator();
