@@ -12,6 +12,7 @@
 #include <string>
 #include <saveMap.h>
 #include <physics.h>
+#include <entities/slime.h>
 
 struct GameData
 {
@@ -27,6 +28,7 @@ struct GameData
 	char saveName[100] = {};
 
 	PhysicalEntity player;
+	Slime slime;
 
 }gameData;
 
@@ -45,9 +47,11 @@ bool initGame()
 	gameData.camera.rotation = 0.0f;
 	gameData.camera.zoom = 100;
 
-	gameData.player.teleport({20, 120});
+	gameData.player.teleport({20, 60});
 	gameData.player.transform.w = 0.9f;
 	gameData.player.transform.h = 1.8f;
+
+	gameData.slime.physics.teleport({ 18,60 });
 
 	return true;
 }
@@ -66,23 +70,38 @@ bool updateGame()
 
 #pragma region camera movement
 	
-	static float CAMERA_SPEED = 25;
+	static float CAMERA_SPEED = 10;
 	if (IsKeyDown(KEY_A)) { gameData.player.transform.pos.x -= CAMERA_SPEED * GetFrameTime(); }
 	if (IsKeyDown(KEY_D)) { gameData.player.transform.pos.x += CAMERA_SPEED * GetFrameTime(); }
 	if (IsKeyDown(KEY_W)) { gameData.player.transform.pos.y -= CAMERA_SPEED * GetFrameTime(); }
 	if (IsKeyDown(KEY_S)) { gameData.player.transform.pos.y += CAMERA_SPEED * GetFrameTime(); }
 
+	if (IsKeyDown(KEY_SPACE)) { gameData.player.jump(10); }
+
 #pragma endregion
 
 #pragma region entities
-
+	//player
+	
 	gameData.player.applyGravity();
 
 	gameData.player.updateForces(deltaTime);
 
+	gameData.player.resolveConstrains(gameData.gameMap);
 	gameData.camera.target = gameData.player.transform.pos;
-
 	gameData.player.updateFinal();
+
+	//slime
+	std::ranlux24_base rng(std::random_device{}());
+
+	gameData.slime.update(deltaTime, rng, gameData.player.getPosition());
+
+	gameData.slime.physics.applyGravity();
+
+	gameData.slime.physics.updateForces(deltaTime);
+	gameData.slime.physics.resolveConstrains(gameData.gameMap);
+	gameData.slime.physics.updateFinal();
+
 
 #pragma endregion
 
@@ -216,6 +235,9 @@ bool updateGame()
 
 		DrawRectangleLinesEx(rect, 0.1, { 20, 101, 250, 145 });
 	}
+
+	//slime
+	gameData.slime.render(assetManager);
 
 	//Player sprite
 	Transform2D playerSprite = gameData.player.transform;

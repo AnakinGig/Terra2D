@@ -72,4 +72,38 @@ struct Block
 			type = 0;
 		}
 	}
+
+	bool isCollidable()
+	{
+		switch(type)
+		{
+			case air:
+			case leaves:
+			case platform:
+			case workBench:
+			case sappling:
+			case door:
+			case jar:
+			case table:
+			case wordrobe:
+			case bookShelf:
+			case icePlatform:
+			case iceTable:
+			case iceWordrobe:
+			case iceBookShelf:
+			case sandPlatform:
+			case sandTable:
+			case sandWordrobe:
+			case sandBookShelf:
+			case bonePlatform:
+			case boneBench:
+			case boneWordrobe:
+			case boneBookShelf:
+			case woodLog:
+				return false;
+			default:
+				return true;
+		}
+		return false;
+	}
 };

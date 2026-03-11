@@ -1,6 +1,7 @@
 #pragma once
 #include <raylib.h>
 #include <raymath.h>
+#include <cmath>
 
 // Vector2 operator overloads
 inline Vector2 operator+(const Vector2& a, const Vector2& b)
@@ -143,6 +144,8 @@ struct Transform2D
 	}
 };
 
+struct GameMap;
+
 struct PhysicalEntity
 {
 	Transform2D transform;
@@ -150,6 +153,11 @@ struct PhysicalEntity
 
 	Vector2 velocity = {};
 	Vector2 acceleration = {};
+
+	bool upTouch = 0;
+	bool downTouch = 0;
+	bool leftTouch = 0;
+	bool rightTouch = 0;
 
 	void teleport(Vector2 pos)
 	{
@@ -193,8 +201,22 @@ struct PhysicalEntity
 		acceleration += {0, 20.0};
 	}
 
+	void jump(float force)
+	{
+		if (downTouch)
+		{
+			velocity.y = -force;
+		}
+	}
+
 	Vector2& getPosition()
 	{
 		return transform.pos;
 	}
+
+	void resolveConstrains(GameMap& mapData);
+
+	void checkCollisionOnce(Vector2& pos, GameMap &mapData);
+
+	Vector2 performCollisionOnOneAxis(GameMap& mapData, Vector2 pos, Vector2 delta);
 };
