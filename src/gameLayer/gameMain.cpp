@@ -16,6 +16,7 @@
 #include <entities/droppedItem.h>
 #include <entityIdHolder.h>
 #include <randomStuff.h>
+#include <player.h>
 
 struct GameData
 {
@@ -30,7 +31,7 @@ struct GameData
 
 	char saveName[100] = {};
 
-	PhysicalEntity player;
+	Player player;
 	EntityHolder entities;
 
 }gameData;
@@ -73,9 +74,9 @@ bool initGame()
 	gameData.camera.rotation = 0.0f;
 	gameData.camera.zoom = 100;
 
-	gameData.player.teleport({20, 60});
-	gameData.player.transform.w = 0.9f;
-	gameData.player.transform.h = 1.8f;
+	gameData.player.physics.teleport({20, 60});
+	gameData.player.physics.transform.w = 0.9f;
+	gameData.player.physics.transform.h = 1.8f;
 
 	spawnSlime({ 18,60 });
 
@@ -97,30 +98,36 @@ bool updateGame()
 #pragma region camera movement
 	
 	static float CAMERA_SPEED = 10;
-	if (IsKeyDown(KEY_A)) { gameData.player.transform.pos.x -= CAMERA_SPEED * GetFrameTime(); }
-	if (IsKeyDown(KEY_D)) { gameData.player.transform.pos.x += CAMERA_SPEED * GetFrameTime(); }
-	if (IsKeyDown(KEY_W)) { gameData.player.transform.pos.y -= CAMERA_SPEED * GetFrameTime(); }
-	if (IsKeyDown(KEY_S)) { gameData.player.transform.pos.y += CAMERA_SPEED * GetFrameTime(); }
+	if (IsKeyDown(KEY_A)) { gameData.player.physics.transform.pos.x -= CAMERA_SPEED * GetFrameTime(); }
+	if (IsKeyDown(KEY_D)) { gameData.player.physics.transform.pos.x += CAMERA_SPEED * GetFrameTime(); }
+	if (IsKeyDown(KEY_W)) { gameData.player.physics.transform.pos.y -= CAMERA_SPEED * GetFrameTime(); }
+	if (IsKeyDown(KEY_S)) { gameData.player.physics.transform.pos.y += CAMERA_SPEED * GetFrameTime(); }
 
-	if (IsKeyDown(KEY_SPACE)) { gameData.player.jump(10); }
+	if (IsKeyDown(KEY_SPACE)) { gameData.player.physics.jump(10); }
 
 #pragma endregion
 
 #pragma region entities
+
+	auto updateEntityPhysics = [&](auto& entity, bool applyGravity = true)
+	{
+		if (applyGravity) { entity.physics.applyGravity(); }
+
+		entity.physics.updateForces(deltaTime);
+
+		entity.physics.resolveConstrains(gameData.gameMap);
+
+		entity.physics.updateFinal();
+	};
+
 	//player
+	updateEntityPhysics(gameData.player, false);
+
+	gameData.camera.target = gameData.player.physics.transform.pos;
 	
-	//gameData.player.applyGravity();
-
-	gameData.player.updateForces(deltaTime);
-
-	gameData.player.resolveConstrains(gameData.gameMap);
-	gameData.camera.target = gameData.player.transform.pos;
-	gameData.player.updateFinal();
-
-	//slime
+	//update all entities
 	std::ranlux24_base rng(std::random_device{}());
 
-	//update all entities
 	for (auto it = gameData.entities.entities.begin(); it != gameData.entities.entities.end(); )
 	{
 		EntityUpdateData entityUpdateData
@@ -144,13 +151,7 @@ bool updateGame()
 		}
 		else
 		{
-			it->second->update(deltaTime, entityUpdateData);
-
-			it->second->physics.applyGravity();
-
-			it->second->physics.updateForces(deltaTime);
-			it->second->physics.resolveConstrains(gameData.gameMap);
-			it->second->physics.updateFinal();
+			updateEntityPhysics(*it->second);
 
 			it++;
 		}
@@ -303,11 +304,11 @@ bool updateGame()
 	}
 
 	//Player sprite
-	Transform2D playerSprite = gameData.player.transform;
+	Transform2D playerSprite = gameData.player.physics.transform;
 	playerSprite.w = 1;
 	playerSprite.h = 2;
 
-	playerSprite.pos.y -= (playerSprite.h - gameData.player.transform.h) / 2;
+	playerSprite.pos.y -= (playerSprite.h - gameData.player.physics.transform.h) / 2;
 
 	DrawTexturePro(
 		assetManager.player,
@@ -318,7 +319,7 @@ bool updateGame()
 		WHITE //tint
 	);
 
-	DrawRectangleLinesEx(gameData.player.transform.getAABB(), 0.1, {20, 101, 250, 120});
+	DrawRectangleLinesEx(gameData.player.physics.transform.getAABB(), 0.1, {20, 101, 250, 120});
 
 	EndMode2D();
 
