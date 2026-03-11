@@ -13,6 +13,9 @@
 #include <saveMap.h>
 #include <physics.h>
 #include <entities/slime.h>
+#include <entities/droppedItem.h>
+#include <entityIdHolder.h>
+#include <randomStuff.h>
 
 struct GameData
 {
@@ -28,7 +31,7 @@ struct GameData
 	char saveName[100] = {};
 
 	PhysicalEntity player;
-	Slime slime;
+	EntityHolder entities;
 
 }gameData;
 
@@ -37,6 +40,29 @@ AssetManager assetManager;
 bool showImgui = false;
 
 // ========== INIT ==========
+void spawnSlime(Vector2 position)
+{
+	Slime slime;
+
+	slime.physics.teleport(position);
+
+	auto id = gameData.entities.idHolder.getEntityIdAndIncrement();
+
+	gameData.entities.entities[id] = std::make_unique<Slime>(slime);
+}
+
+void spawnDroppedItem(Vector2 position, int type)
+{
+	DroppedItem droppedItem;
+
+	droppedItem.teleport(position);
+	droppedItem.itemType = type;
+
+	auto id = gameData.entities.idHolder.getEntityIdAndIncrement();
+
+	gameData.entities.entities[id] = std::make_unique<DroppedItem>(droppedItem);
+}
+
 bool initGame()
 {
 	assetManager.loadAll();
@@ -51,7 +77,7 @@ bool initGame()
 	gameData.player.transform.w = 0.9f;
 	gameData.player.transform.h = 1.8f;
 
-	gameData.slime.physics.teleport({ 18,60 });
+	spawnSlime({ 18,60 });
 
 	return true;
 }
@@ -83,7 +109,7 @@ bool updateGame()
 #pragma region entities
 	//player
 	
-	gameData.player.applyGravity();
+	//gameData.player.applyGravity();
 
 	gameData.player.updateForces(deltaTime);
 
@@ -94,14 +120,41 @@ bool updateGame()
 	//slime
 	std::ranlux24_base rng(std::random_device{}());
 
-	gameData.slime.update(deltaTime, rng, gameData.player.getPosition());
+	//update all entities
+	for (auto it = gameData.entities.entities.begin(); it != gameData.entities.entities.end(); )
+	{
+		EntityUpdateData entityUpdateData
+		{
+			gameData.player.getPosition(),
+			rng,
+			gameData.entities,
+			it->first,
+		};
 
-	gameData.slime.physics.applyGravity();
+		bool shouldKill = false;
 
-	gameData.slime.physics.updateForces(deltaTime);
-	gameData.slime.physics.resolveConstrains(gameData.gameMap);
-	gameData.slime.physics.updateFinal();
+		if (!it->second->update(deltaTime, entityUpdateData))
+		{
+			shouldKill = true;
+		}
 
+		if (shouldKill)
+		{
+			it = gameData.entities.entities.erase(it);
+		}
+		else
+		{
+			it->second->update(deltaTime, entityUpdateData);
+
+			it->second->physics.applyGravity();
+
+			it->second->physics.updateForces(deltaTime);
+			it->second->physics.resolveConstrains(gameData.gameMap);
+			it->second->physics.updateFinal();
+
+			it++;
+		}
+	}
 
 #pragma endregion
 
@@ -135,15 +188,22 @@ bool updateGame()
 
 	if (!showImgui)
 	{
+		// Block breaking
 		if (IsMouseButtonDown(MOUSE_BUTTON_LEFT))
 		{
 			auto b = gameData.gameMap.getBlocSafe(blockX, blockY);
 			if (b)
 			{
+				if (b->type)
+				{
+					spawnDroppedItem({ (float)blockX + getRandomFloat(rng, 0.4, 0.6), (float)blockY + 0.5f}, b->type);
+				}
+
 				*b = {};
 			}
 		}
 
+		// Block placing
 		if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
 		{
 			auto b = gameData.gameMap.getBlocSafe(blockX, blockY);
@@ -237,7 +297,10 @@ bool updateGame()
 	}
 
 	//slime
-	gameData.slime.render(assetManager);
+	for (auto& e : gameData.entities.entities)
+	{
+		e.second->render(assetManager);
+	}
 
 	//Player sprite
 	Transform2D playerSprite = gameData.player.transform;
@@ -265,6 +328,11 @@ bool updateGame()
 
 		ImGui::SliderFloat("Camera zoom", &gameData.camera.zoom, 1, 150);
 		ImGui::SliderFloat("Camera speed", &CAMERA_SPEED, 5, 200);
+
+		if (ImGui::Button("Spawn Slime"))
+		{
+			spawnSlime({ 18, 60 });
+		}
 
 		if (ImGui::Button("Copy"))
 		{
