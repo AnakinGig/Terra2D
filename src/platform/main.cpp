@@ -64,10 +64,9 @@ int main()
 
 		EndDrawing();
 	}
+	closeGame();
 
 	CloseWindow();
-
-	closeGame();
 
 #pragma region imgui
 	rlImGuiShutdown();

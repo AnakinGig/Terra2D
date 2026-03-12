@@ -92,7 +92,8 @@ struct Entity
 		if (json["life"].is_number())
 		{
 			life = json["life"];
-
 		}
+
+		return true;
 	}
 };

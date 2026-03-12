@@ -14,6 +14,7 @@ void AssetManager::loadAll()
 	desertBg = LoadTexture(RESOURCES_PATH "desertBG.png");
 	snowBG = LoadTexture(RESOURCES_PATH "snowBG.png");
 	caveBG = LoadTexture(RESOURCES_PATH "caveBG.png");
+	hearts = LoadTexture(RESOURCES_PATH "hearts.png");
 
 	//0 = default
 	feetArmour[0] = LoadTexture(RESOURCES_PATH "body/player_feet.png");

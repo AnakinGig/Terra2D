@@ -86,6 +86,11 @@ struct Item
 	{
 		return ::isBlock(type);
 	}
+
+	int maxStackSize()
+	{
+		return 999;
+	}
 };
 
 Texture getTextureForItemType(int itemType, AssetManager& assetManager);

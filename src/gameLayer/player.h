@@ -36,8 +36,8 @@ struct Player : public Entity
 
 	void setColliderSize()
 	{
-		physics.transform.w = 0.8f;
-		physics.transform.h = 1.6f;
+		physics.transform.w = 0.9f;
+		physics.transform.h = 1.8f;
 	}
 
 	float getMaxLife() { return 50; }
