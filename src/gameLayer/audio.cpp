@@ -1,7 +1,4 @@
 #include "audio.h"
-#include "audio.h"
-#include "audio.h"
-#include "audio.h"
 #include <raylib.h>
 #include <vector>
 #include <cmath>
@@ -23,6 +20,10 @@ namespace Audio
 	int currentMusicPlaying = 0;
 
 	std::vector<Sound> allSounds;
+
+	int currentMusicType = noneMusic;
+	int currentTransitionType = noneMusic;
+	float transitionTime = 0;
 
 	void loadAllMusicAndSounds()
 	{
@@ -100,6 +101,12 @@ namespace Audio
 
 		SetMusicVolume(allMusics[currentMusicPlaying], std::pow(getSettings().musicVolume * getSettings().masterVolume, 1.0));
 		UpdateMusicStream(allMusics[currentMusicPlaying]);
+
+		// Update transition time
+		if (transitionTime > 0)
+		{
+			transitionTime -= GetFrameTime();
+		}
 	}
 
 	void stopAllMusic()
@@ -124,5 +131,20 @@ namespace Audio
 	{
 		if (!currentMusicPlaying) { return 0; }
 		return IsAudioStreamPlaying(allMusics[currentMusicPlaying].stream);
+	}
+
+	void setMusic(int music)
+	{
+		if (music != currentMusicType)
+		{
+			if (transitionTime <= 0)
+			{
+				transitionTime = 1; // transition time in seconds
+				currentTransitionType = currentMusicType;
+				currentMusicType = music;
+
+				playMusic(music);
+			}
+		}
 	}
 }

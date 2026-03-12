@@ -33,6 +33,177 @@ Rectangle Gameplay::getInventoryRectangle(float w, float h)
 	return inventoryRectangle;
 }
 
+int Gameplay::detectBiome(Vector2 position)
+{
+	const int SAMPLE_RADIUS = 15;
+	const int CEILING_CHECK_HEIGHT = 15;
+	const int CEILING_CHECK_WIDTH = 3;
+	const int SKY_SAMPLE_DEPTH = 60;
+	const int SKY_SAMPLE_THRESHOLD = 30;
+
+	struct BiomeBlocks {
+		int sand = 0;
+		int stone = 0;
+		int snow = 0;
+		int ice = 0;
+		int total = 0;
+	};
+
+	auto countBlockType = [](Block& block, BiomeBlocks& blocks) {
+		switch (block.type)
+		{
+			case Block::sand:
+			case Block::sandRuby:
+			case Block::sandStone:
+			case Block::sandTable:
+			case Block::sandWordrobe:
+			case Block::sandBookShelf:
+			case Block::sandPlatform:
+			case Block::sandChest:
+				blocks.sand++;
+				break;
+
+			case Block::stone:
+			case Block::stoneBricks:
+			case Block::copper:
+			case Block::iron:
+			case Block::gold:
+				blocks.stone++;
+				break;
+
+			case Block::snow:
+			case Block::snowBlueRuby:
+			case Block::snowBricks:
+				blocks.snow++;
+				break;
+
+			case Block::ice:
+			case Block::iceTable:
+			case Block::iceWordrobe:
+			case Block::iceBookShelf:
+			case Block::icePlatform:
+			case Block::iceChest:
+				blocks.ice++;
+				break;
+
+			case Block::grassBlock:
+			case Block::grass:
+			case Block::dirt:
+				// Count for total but don't track separately
+				break;
+		}
+		blocks.total++;
+	};
+
+	BiomeBlocks blocks;
+	bool inSky = false;
+
+	int startX = (int)position.x - SAMPLE_RADIUS;
+	int endX = (int)position.x + SAMPLE_RADIUS;
+	int startY = (int)position.y - SAMPLE_RADIUS;
+	int endY = (int)position.y + SAMPLE_RADIUS;
+
+	// Sample blocks around the player
+	for (int y = startY; y <= endY; y++)
+	{
+		for (int x = startX; x <= endX; x++)
+		{
+			auto b = gameMap.getBlocSafe(x, y);
+			if (b && b->type != Block::air)
+			{
+				countBlockType(*b, blocks);
+			}
+		}
+	}
+
+	// If in the sky, sample downward to find ground
+	if (blocks.total == 0)
+	{
+		inSky = true;
+
+		for (int y = (int)position.y; y < gameMap.h && y < position.y + SKY_SAMPLE_DEPTH; y++)
+		{
+			for (int x = startX; x <= endX; x++)
+			{
+				auto b = gameMap.getBlocSafe(x, y);
+				if (b && b->type != Block::air && b->type != Block::stone)
+				{
+					countBlockType(*b, blocks);
+				}
+			}
+
+			if (blocks.total > SKY_SAMPLE_THRESHOLD) { break; }
+		}
+	}
+
+	if (blocks.total == 0) { return Background::forest; }
+
+	// Check for ceiling above (cave detection)
+	int blocksAboveCount = 0;
+	if (!inSky)
+	{
+		int ceilingStartX = (int)position.x - CEILING_CHECK_WIDTH;
+		int ceilingEndX = (int)position.x + CEILING_CHECK_WIDTH;
+
+		for (int y = (int)position.y - CEILING_CHECK_HEIGHT; y < (int)position.y - 1; y++)
+		{
+			for (int x = ceilingStartX; x <= ceilingEndX; x++)
+			{
+				auto b = gameMap.getBlocSafe(x, y);
+				if (b && b->type != Block::air && b->isCollidable())
+				{
+					blocksAboveCount++;
+				}
+			}
+		}
+	}
+
+	bool hasCeilingAbove = blocksAboveCount > 15;
+
+	// Store debug info
+	biomeDebug.totalBlocks = blocks.total;
+	biomeDebug.sandCount = blocks.sand;
+	biomeDebug.stoneCount = blocks.stone;
+	biomeDebug.snowCount = blocks.snow;
+	biomeDebug.iceCount = blocks.ice;
+	biomeDebug.blocksAbove = blocksAboveCount;
+	biomeDebug.hasCeiling = hasCeilingAbove;
+	biomeDebug.inSky = inSky;
+
+	// Biome detection logic - prioritize block types over ceiling
+	// Check surface biomes first (they have priority even if you have a ceiling)
+
+	// Snow biome: significant snow or ice
+	if ((blocks.snow + blocks.ice) > blocks.total * 0.3f)
+	{
+		return Background::snow;
+	}
+
+	// Desert: significant sand
+	if (blocks.sand > blocks.total * 0.3f)
+	{
+		return Background::desert;
+	}
+
+	// Cave detection: requires BOTH ceiling AND high stone percentage, OR very deep underground
+	if (!inSky)
+	{
+		bool deepUnderground = position.y > 100;
+		bool veryDeepUnderground = position.y > 130;
+		bool highStonePercentage = (blocks.stone > blocks.total * 0.5f);
+		bool veryHighStonePercentage = (blocks.stone > blocks.total * 0.7f);
+
+		// Require both ceiling and stone, OR very deep with very high stone
+		if ((hasCeilingAbove && highStonePercentage) || (veryDeepUnderground && veryHighStonePercentage))
+		{
+			return Background::cave;
+		}
+	}
+
+	// Default to forest
+	return Background::forest;
+}
+
 void Gameplay::spawnSlime(Vector2 position)
 {
 	Slime slime;
@@ -73,9 +244,6 @@ bool Gameplay::init()
 
 bool Gameplay::update(AssetManager& assetManager)
 {
-	Audio::update();
-	updateSettings();
-
 	float deltaTime = GetFrameTime();
 	if (deltaTime > 1.f / 5) { deltaTime = 1 / 5.f; }
 
@@ -249,6 +417,30 @@ bool Gameplay::update(AssetManager& assetManager)
 	int blockX = (int)floor(worldPos.x);
 	int blockY = (int)floor(worldPos.y);
 
+	auto isEntityAtPosition = [&](int x, int y) -> bool
+		{
+			Rectangle blockRect = { (float)x, (float)y, 1.0f, 1.0f };
+
+			// Check player collision
+			if (CheckCollisionRecs(blockRect, player.physics.transform.getAABB()))
+			{
+				return true;
+			}
+
+			// Check other entities collision (ignore dropped items)
+			for (const auto& e : entities.entities)
+			{
+				if (e.second->getEntityType() != EntityType_DroppedItem)
+				{
+					if (CheckCollisionRecs(blockRect, e.second->physics.transform.getAABB()))
+					{
+						return true;
+					}
+				}
+			}
+			return false;
+		};
+
 	if (creativeSelectedBlock < 0) { creativeSelectedBlock = 0; }
 	if (creativeSelectedBlock >= Block::BLOCKS_COUNT) { creativeSelectedBlock = Block::BLOCKS_COUNT - 1; }
 
@@ -299,7 +491,7 @@ bool Gameplay::update(AssetManager& assetManager)
 				auto b = gameMap.getBlocSafe(blockX, blockY);
 				if (b)
 				{
-					if (b->type != creativeSelectedBlock)
+					if (b->type != creativeSelectedBlock && b->type == Block::air && !isEntityAtPosition(blockX, blockY))
 					{
 						b->type = creativeSelectedBlock;
 						Audio::playSound(Audio::placeBlock);
@@ -325,21 +517,19 @@ bool Gameplay::update(AssetManager& assetManager)
 
 #pragma region draw world
 	//Biome related stuff
-	int backgroundType = DrawBackground::forest;
-	Audio::playMusic(Audio::musicForest);
+	int backgroundType = detectBiome(player.getPosition());
 
-	if (player.getPosition().x > gameMap.desertStart && player.getPosition().x < gameMap.desertEnd)
+	int musicType = Audio::musicForest;
+	switch (backgroundType)
 	{
-		backgroundType = DrawBackground::desert;
-		Audio::playMusic(Audio::musicDesert);
-	}
-	if (player.getPosition().y > 120)
-	{
-		backgroundType = DrawBackground::cave;
-		Audio::playMusic(Audio::musicCave);
+		case Background::forest: musicType = Audio::musicForest; break;
+		case Background::desert: musicType = Audio::musicDesert; break;
+		case Background::snow: musicType = Audio::musicSnow; break;
+		case Background::cave: musicType = Audio::musicCave; break;
 	}
 
 	background.setBackground(backgroundType);
+	Audio::setMusic(musicType);
 
 	background.draw(deltaTime, assetManager, camera, { (float)gameMap.w, (float)gameMap.h });
 
@@ -431,6 +621,31 @@ bool Gameplay::update(AssetManager& assetManager)
 	player.render(assetManager);
 
 	DrawRectangleLinesEx(player.physics.transform.getAABB(), 0.1, { 20, 101, 250, 120 });
+
+	// Debug: Show biome detection areas
+	if (showImgui)
+	{
+		const int SAMPLE_RADIUS = 15;
+		const int NARROW_CEILING_CHECK = 3;
+		const int CEILING_CHECK_DISTANCE = 15;
+		Vector2 playerPos = player.getPosition();
+
+		// Draw sample radius around player (yellow)
+		Rectangle sampleArea;
+		sampleArea.x = playerPos.x - SAMPLE_RADIUS;
+		sampleArea.y = playerPos.y - SAMPLE_RADIUS;
+		sampleArea.width = SAMPLE_RADIUS * 2;
+		sampleArea.height = SAMPLE_RADIUS * 2;
+		DrawRectangleLinesEx(sampleArea, 0.1, { 255, 255, 0, 150 }); // Yellow
+
+		// Draw narrow ceiling check area directly above (cyan)
+		Rectangle ceilingCheckArea;
+		ceilingCheckArea.x = playerPos.x - NARROW_CEILING_CHECK;
+		ceilingCheckArea.y = playerPos.y - CEILING_CHECK_DISTANCE;
+		ceilingCheckArea.width = NARROW_CEILING_CHECK * 2;
+		ceilingCheckArea.height = CEILING_CHECK_DISTANCE - 1;
+		DrawRectangleLinesEx(ceilingCheckArea, 0.1, { 0, 255, 255, 200 }); // Cyan
+	}
 
 	EndMode2D();
 
@@ -524,6 +739,20 @@ bool Gameplay::update(AssetManager& assetManager)
 		ImGui::SliderFloat("Camera zoom", &camera.zoom, 1, 150);
 		ImGui::SliderFloat("Camera speed", &CAMERA_SPEED, 5, 200);
 		ImGui::Checkbox("Creative mode", &creative);
+
+		ImGui::Separator();
+		ImGui::Text("Biome Detection Debug:");
+		ImGui::Text("Current Biome: %s", 
+			backgroundType == Background::forest ? "Forest" :
+			backgroundType == Background::desert ? "Desert" :
+			backgroundType == Background::snow ? "Snow" :
+			backgroundType == Background::cave ? "Cave" : "Unknown");
+		ImGui::Text("Total Blocks: %d", biomeDebug.totalBlocks);
+		ImGui::Text("Sand: %d, Stone: %d", biomeDebug.sandCount, biomeDebug.stoneCount);
+		ImGui::Text("Snow: %d, Ice: %d", biomeDebug.snowCount, biomeDebug.iceCount);
+		ImGui::Text("Blocks Above: %d (Ceiling: %s)", biomeDebug.blocksAbove, biomeDebug.hasCeiling ? "YES" : "NO");
+		ImGui::Text("In Sky: %s", biomeDebug.inSky ? "YES" : "NO");
+		ImGui::Separator();
 
 		if (ImGui::Button("Spawn Slime"))
 		{

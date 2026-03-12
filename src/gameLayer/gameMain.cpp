@@ -3,6 +3,7 @@
 #include <settings.h>
 #include <saveMap.h>
 #include <gameplay.h>
+#include <ui.h>
 
 /*
 TODO : 
@@ -17,14 +18,28 @@ Implement audio switch when chenging biomes (like we did for the background)
 
 Implement fully working inventory with item rendering and selection
 
+Implement more enemies
+
+Implement chests and loot
+
+Crafting system
+
+Creative mode
+
+World selector
+
+Animate main menu background (move camera, and sometimes switch bioms)
+
 Bug fix :
-- Change bloc placement to check for entities or existing blocks
 
 */
 
 AssetManager assetManager;
-
 Gameplay gameplay;
+UIEngine mainMenu;
+Background backgroundMainMenu;
+bool gameplayRunning = false;
+
 // ========== INIT ==========
 
 bool initGame()
@@ -41,7 +56,43 @@ bool initGame()
 // ========== UPDATE ==========
 bool updateGame()
 {
-	return gameplay.update(assetManager);
+	Audio::update();
+	updateSettings();
+
+	ClearBackground({ 0, 0, 0, 255 });
+
+	if (!gameplayRunning)
+	{
+		Camera2D c = {};
+		c.offset = { GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f };
+		c.target = { 200, 500 };
+		c.zoom = 20;
+		backgroundMainMenu.draw(GetFrameTime(), assetManager, c, { 1000, 1000 });
+
+		mainMenu.addTitle("Main menu");
+
+		if (mainMenu.addButton("Start game"))
+		{
+			gameplayRunning = true;
+			gameplay = {};
+			gameplay.init();
+		}
+
+		mainMenu.addButton("Settings");
+
+		if (mainMenu.addButton("Exit"))
+		{
+			return false;
+		}
+
+		mainMenu.updateAndRender();
+
+		return true;
+	}
+	else
+	{
+		return gameplay.update(assetManager);
+	}
 }
 
 // ========== CLOSE ==========

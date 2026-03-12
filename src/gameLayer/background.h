@@ -4,7 +4,7 @@
 
 struct AssetManager;
 
-struct DrawBackground
+struct Background
 {
 	enum
 	{

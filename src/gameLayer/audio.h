@@ -35,4 +35,6 @@ namespace Audio
 
 		MUSICS_COUNT
 	};
+
+	void setMusic(int music);
 };

@@ -1,10 +1,9 @@
-#include "drawBackground.h"
-#include "drawBackground.h"
+#include "background.h"
 #include <assetManager.h>
 #include <raymath.h>
 #include <algorithm>
 
-void DrawBackground::draw(float deltaTime, AssetManager& assetManager, Camera2D camera, Vector2 mapSize)
+void Background::draw(float deltaTime, AssetManager& assetManager, Camera2D camera, Vector2 mapSize)
 {
 	auto drawOneBackground = [&](int type, float parallax, float opacity)
 	{
@@ -81,7 +80,7 @@ void DrawBackground::draw(float deltaTime, AssetManager& assetManager, Camera2D 
 	}
 }
 
-void DrawBackground::setBackground(int background)
+void Background::setBackground(int background)
 {
 	if (background != currentBackgroundType)
 	{
