@@ -27,6 +27,8 @@ struct Gameplay
 	bool insideInventory = false;
 
 	bool showImgui = false;
+	bool showCollisionBoxes = false;
+	bool showBiomeDetectionZones = false;
 
 	// Debug info for biome detection
 	struct BiomeDebugInfo {

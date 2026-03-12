@@ -620,10 +620,20 @@ bool Gameplay::update(AssetManager& assetManager)
 	//Player
 	player.render(assetManager);
 
-	DrawRectangleLinesEx(player.physics.transform.getAABB(), 0.1, { 20, 101, 250, 120 });
+	if (showCollisionBoxes)
+	{
+		// Player collision box
+		DrawRectangleLinesEx(player.physics.transform.getAABB(), 0.1, { 20, 101, 250, 120 });
+
+		// Entity collision boxes
+		for (auto& e : entities.entities)
+		{
+			DrawRectangleLinesEx(e.second->physics.transform.getAABB(), 0.1, { 250, 101, 20, 120 });
+		}
+	}
 
 	// Debug: Show biome detection areas
-	if (showImgui)
+	if (showBiomeDetectionZones)
 	{
 		const int SAMPLE_RADIUS = 15;
 		const int NARROW_CEILING_CHECK = 3;
@@ -734,131 +744,172 @@ bool Gameplay::update(AssetManager& assetManager)
 
 	if (showImgui)
 	{
-		ImGui::Begin("GameControll");
+		ImGui::Begin("Debug Panel", &showImgui);
 
-		ImGui::SliderFloat("Camera zoom", &camera.zoom, 1, 150);
-		ImGui::SliderFloat("Camera speed", &CAMERA_SPEED, 5, 200);
-		ImGui::Checkbox("Creative mode", &creative);
+		Vector2 playerPos = player.getPosition();
 
-		ImGui::Separator();
-		ImGui::Text("Biome Detection Debug:");
-		ImGui::Text("Current Biome: %s", 
-			backgroundType == Background::forest ? "Forest" :
-			backgroundType == Background::desert ? "Desert" :
-			backgroundType == Background::snow ? "Snow" :
-			backgroundType == Background::cave ? "Cave" : "Unknown");
-		ImGui::Text("Total Blocks: %d", biomeDebug.totalBlocks);
-		ImGui::Text("Sand: %d, Stone: %d", biomeDebug.sandCount, biomeDebug.stoneCount);
-		ImGui::Text("Snow: %d, Ice: %d", biomeDebug.snowCount, biomeDebug.iceCount);
-		ImGui::Text("Blocks Above: %d (Ceiling: %s)", biomeDebug.blocksAbove, biomeDebug.hasCeiling ? "YES" : "NO");
-		ImGui::Text("In Sky: %s", biomeDebug.inSky ? "YES" : "NO");
-		ImGui::Separator();
-
-		if (ImGui::Button("Spawn Slime"))
+		if (ImGui::BeginTabBar("DebugTabs"))
 		{
-			spawnSlime({ 18, 60 });
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Hurt a slime"))
-		{
-			for (auto& e : entities.entities)
+			// ============ INFORMATION TAB ============
+			if (ImGui::BeginTabItem("Information"))
 			{
-				if (e.second->getEntityType() == EntityType::EntityType_Slime)
+				ImGui::SeparatorText("Player Info");
+				ImGui::Text("Position: X=%.2f, Y=%.2f", playerPos.x, playerPos.y);
+				ImGui::Text("Velocity: X=%.2f, Y=%.2f", player.physics.velocity.x, player.physics.velocity.y);
+				ImGui::Text("On Ground: %s", player.physics.downTouch ? "Yes" : "No");
+				ImGui::Text("Health: %.1f", player.life);
+
+				ImGui::SeparatorText("Biome Info");
+				const char* biomeName = 
+					backgroundType == Background::forest ? "Forest" :
+					backgroundType == Background::desert ? "Desert" :
+					backgroundType == Background::snow ? "Snow" :
+					backgroundType == Background::cave ? "Cave" : "Unknown";
+				ImGui::Text("Current Biome: %s", biomeName);
+				ImGui::Text("Total Blocks: %d", biomeDebug.totalBlocks);
+				ImGui::Text("Sand: %d (%.1f%%)", biomeDebug.sandCount, 
+					biomeDebug.totalBlocks > 0 ? (100.0f * biomeDebug.sandCount / biomeDebug.totalBlocks) : 0);
+				ImGui::Text("Stone: %d (%.1f%%)", biomeDebug.stoneCount,
+					biomeDebug.totalBlocks > 0 ? (100.0f * biomeDebug.stoneCount / biomeDebug.totalBlocks) : 0);
+				ImGui::Text("Snow: %d (%.1f%%)", biomeDebug.snowCount,
+					biomeDebug.totalBlocks > 0 ? (100.0f * biomeDebug.snowCount / biomeDebug.totalBlocks) : 0);
+				ImGui::Text("Ice: %d (%.1f%%)", biomeDebug.iceCount,
+					biomeDebug.totalBlocks > 0 ? (100.0f * biomeDebug.iceCount / biomeDebug.totalBlocks) : 0);
+				ImGui::Text("Blocks Above: %d", biomeDebug.blocksAbove);
+				ImGui::Text("Has Ceiling: %s", biomeDebug.hasCeiling ? "Yes" : "No");
+				ImGui::Text("In Sky: %s", biomeDebug.inSky ? "Yes" : "No");
+
+				ImGui::SeparatorText("World Info");
+				ImGui::Text("Map Size: %d x %d", gameMap.w, gameMap.h);
+				ImGui::Text("Entities: %d", (int)entities.entities.size());
+				ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+
+				ImGui::EndTabItem();
+			}
+
+			// ============ DEBUG COMMANDS TAB ============
+			if (ImGui::BeginTabItem("Debug Commands"))
+			{
+				ImGui::SeparatorText("Game Mode");
+				ImGui::Checkbox("Creative Mode", &creative);
+
+				ImGui::SeparatorText("Camera Controls");
+				ImGui::SliderFloat("Camera Zoom", &camera.zoom, 1, 150);
+				ImGui::SliderFloat("Camera Speed", &CAMERA_SPEED, 5, 200);
+
+				ImGui::SeparatorText("Visualization");
+				ImGui::Checkbox("Show Collision Boxes", &showCollisionBoxes);
+				ImGui::Checkbox("Show Biome Detection Zones", &showBiomeDetectionZones);
+
+				ImGui::SeparatorText("Entities");
+				if (ImGui::Button("Spawn Slime"))
 				{
-					e.second->life -= 3;
-					break;
+					spawnSlime({ playerPos.x, playerPos.y - 2 });
 				}
-			}
-		}
-
-		if (ImGui::Button("Copy"))
-		{
-			copyStructure.copyFromMap(gameMap, selectionStart, selectionEnd);
-		}
-
-		ImGui::InputText("File name", saveName, sizeof(saveName));
-
-		if (ImGui::Button("Save"))
-		{
-			std::string path = RESOURCES_PATH "structures/";
-			path += saveName;
-			path += ".bin";
-
-			saveBlockDataToFile(copyStructure.mapData, copyStructure.w, copyStructure.h, path.c_str());
-		}
-		ImGui::SameLine();
-
-		if (ImGui::Button("Load"))
-		{
-			std::string path = RESOURCES_PATH "structures/";
-			path += saveName;
-			path += ".bin";
-
-			loadBlockDataFromFile(copyStructure.mapData, copyStructure.w, copyStructure.h, path.c_str());
-		}
-
-		ImGui::Separator();
-
-		ImGui::SliderFloat("Master volume", &getSettings().masterVolume, 0, 1);
-		ImGui::SliderFloat("Sound volume", &getSettings().soundsVolume, 0, 1);
-		ImGui::SliderFloat("Music volume", &getSettings().musicVolume, 0, 1);
-
-		if (ImGui::Button("Save settings"))
-		{
-			saveSettings();
-		}
-		if (ImGui::Button("Load settings"))
-		{
-			loadSettings();
-		}
-
-
-		if (ImGui::Button("Save World"))
-		{
-			saveWorld(gameMap, entities, player);
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Load world"))
-		{
-			if (!loadWorld(gameMap, entities, player))
-			{
-				return false;
-			}
-		}
-
-		ImGui::Separator();
-
-		for (int i = 0; i < Block::BLOCKS_COUNT; i++)
-		{
-			auto atlas = getTextureAtlas(i, 0, 32, 32);
-			atlas.x /= assetManager.textures.width;
-			atlas.width /= assetManager.textures.width;
-			atlas.y /= assetManager.textures.height;
-			atlas.height /= assetManager.textures.height;
-
-			ImGui::PushID(i);
-
-			ImTextureID tex = (ImTextureID)(intptr_t)assetManager.textures.id;
-			if (ImGui::ImageButton(tex,
-				{ 35,35 }, { atlas.x, atlas.y },
-				{ atlas.x + atlas.width, atlas.y + atlas.height }))
-			{
-				creativeSelectedBlock = i;
-			}
-
-			ImGui::PopID();
-
-			if (i % 10 != 0)
-			{
 				ImGui::SameLine();
+				if (ImGui::Button("Hurt a Slime"))
+				{
+					for (auto& e : entities.entities)
+					{
+						if (e.second->getEntityType() == EntityType::EntityType_Slime)
+						{
+							e.second->life -= 3;
+							break;
+						}
+					}
+				}
+
+				ImGui::SeparatorText("World Editing");
+				if (ImGui::Button("Copy Selection"))
+				{
+					copyStructure.copyFromMap(gameMap, selectionStart, selectionEnd);
+				}
+
+				ImGui::InputText("File Name", saveName, sizeof(saveName));
+
+				if (ImGui::Button("Save Structure"))
+				{
+					std::string path = RESOURCES_PATH "structures/";
+					path += saveName;
+					path += ".bin";
+					saveBlockDataToFile(copyStructure.mapData, copyStructure.w, copyStructure.h, path.c_str());
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Load Structure"))
+				{
+					std::string path = RESOURCES_PATH "structures/";
+					path += saveName;
+					path += ".bin";
+					loadBlockDataFromFile(copyStructure.mapData, copyStructure.w, copyStructure.h, path.c_str());
+				}
+
+				ImGui::SeparatorText("Audio Settings");
+				ImGui::SliderFloat("Master Volume", &getSettings().masterVolume, 0, 1);
+				ImGui::SliderFloat("Sound Volume", &getSettings().soundsVolume, 0, 1);
+				ImGui::SliderFloat("Music Volume", &getSettings().musicVolume, 0, 1);
+
+				if (ImGui::Button("Save Settings"))
+				{
+					saveSettings();
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Load Settings"))
+				{
+					loadSettings();
+				}
+
+				ImGui::SeparatorText("World Save/Load");
+				if (ImGui::Button("Save World"))
+				{
+					saveWorld(gameMap, entities, player);
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Load World"))
+				{
+					if (!loadWorld(gameMap, entities, player))
+					{
+						// Error handling if needed
+					}
+				}
+
+				ImGui::SeparatorText("Block Selection");
+				for (int i = 0; i < Block::BLOCKS_COUNT; i++)
+				{
+					auto atlas = getTextureAtlas(i, 0, 32, 32);
+					atlas.x /= assetManager.textures.width;
+					atlas.width /= assetManager.textures.width;
+					atlas.y /= assetManager.textures.height;
+					atlas.height /= assetManager.textures.height;
+
+					ImGui::PushID(i);
+
+					ImTextureID tex = (ImTextureID)(intptr_t)assetManager.textures.id;
+					if (ImGui::ImageButton(tex,
+						{ 35,35 }, { atlas.x, atlas.y },
+						{ atlas.x + atlas.width, atlas.y + atlas.height }))
+					{
+						creativeSelectedBlock = i;
+					}
+
+					ImGui::PopID();
+
+					if (i % 10 != 9)
+					{
+						ImGui::SameLine();
+					}
+				}
+
+				ImGui::EndTabItem();
 			}
+
+			ImGui::EndTabBar();
 		}
 
 		ImGui::End();
 	}
 #pragma	endregion
 
-	DrawFPS(10, 10);
+	if (!showImgui) { DrawFPS(10, 10); }
 
 	return true;
 }
