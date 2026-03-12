@@ -2,6 +2,9 @@
 #include <raylib.h>
 #include <raymath.h>
 #include <cmath>
+#include <nlohmann/json.hpp>
+
+using Json = nlohmann::json;
 
 // Vector2 operator overloads
 inline Vector2 operator+(const Vector2& a, const Vector2& b)
@@ -158,6 +161,52 @@ struct PhysicalEntity
 	bool downTouch = 0;
 	bool leftTouch = 0;
 	bool rightTouch = 0;
+
+	Json formatToJson()
+	{
+		Json j;
+
+		j["posX"] = transform.pos.x;
+		j["posY"] = transform.pos.y;
+		j["velX"] = velocity.x;
+		j["velY"] = velocity.y;
+
+		return j;
+	}
+
+	bool loadFromJson(Json j)
+	{
+		*this = {};
+
+		if (!j.contains("posX") || !j["posX"].is_number())
+			return false;
+		transform.pos.x = j["posX"];
+
+		if (!j.contains("posY") || !j["posY"].is_number())
+			return false;
+		transform.pos.y = j["posY"];
+
+		if (j.contains("velX"))
+		{
+			if (j["velX"].is_number())
+			{
+				velocity.x = j["velX"];
+
+			}
+		}
+
+		if (j.contains("velY"))
+		{
+			if (j["velY"].is_number())
+			{
+				velocity.y = j["velY"];
+			}
+		}
+
+		lastPosition = transform.pos;
+
+		return true;
+	}
 
 	void teleport(Vector2 pos)
 	{

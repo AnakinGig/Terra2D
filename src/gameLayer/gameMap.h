@@ -15,4 +15,6 @@ struct GameMap
 
 	Block *getBlocSafe(int x, int y);
 
+	int desertStart = 0;
+	int desertEnd = 0;
 };

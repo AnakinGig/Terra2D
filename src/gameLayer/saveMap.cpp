@@ -1,5 +1,12 @@
 #include "saveMap.h"
 #include <asserts.h>
+#include <nlohmann/json.hpp>
+#include <filesystem>
+#include <gameMap.h>
+#include <entityIdHolder.h>
+#include <player.h>
+#include <entities/slime.h>
+#include <entities/droppedItem.h>
 
 struct BlockSaveRepresentation1
 {
@@ -116,5 +123,147 @@ bool loadBlockDataFromFile(std::vector<Block>& blocks, int& w, int& h, const cha
 	}
 
 	f.close();
+	return true;
+}
+
+using Json = nlohmann::json;
+
+void saveWorld(GameMap& gameMap, EntityHolder& entities, Player& player)
+{
+	std::error_code errorCode;
+	std::filesystem::create_directories(RESOURCES_PATH "../saves/", errorCode);
+
+	//map
+	saveBlockDataToFile(gameMap.mapData, gameMap.w, gameMap.h, RESOURCES_PATH "../saves/world.bin.tmp");
+
+	//id holder
+	{
+		std::ofstream f(RESOURCES_PATH "../saves/idHolder.txt.tmp", std::ios::binary);
+		f << entities.idHolder.idCounter;
+		f.close();
+	}
+
+	//player
+	{
+		Json j = player.formatToJson();
+
+		std::ofstream f(RESOURCES_PATH "../saves/player.txt.tmp");
+		f << j.dump(2);
+		f.close();
+	}
+
+	//entities
+	{
+		Json j;
+
+		for (auto& e : entities.entities)
+		{
+			j[std::to_string(e.first)] = e.second->formatToJson();
+		}
+
+		std::ofstream f(RESOURCES_PATH "../saves/entities.txt.tmp");
+		f << j.dump(2);
+		f.close();
+	}
+
+	std::filesystem::rename(RESOURCES_PATH "../saves/world.bin.tmp", RESOURCES_PATH "../saves/world.bin", errorCode);
+	std::filesystem::rename(RESOURCES_PATH "../saves/idHolder.txt.tmp", RESOURCES_PATH "../saves/idHolder.txt", errorCode);
+	std::filesystem::rename(RESOURCES_PATH "../saves/player.txt.tmp", RESOURCES_PATH "../saves/player.txt", errorCode);
+	std::filesystem::rename(RESOURCES_PATH "../saves/entities.txt.tmp", RESOURCES_PATH "../saves/entities.txt", errorCode);
+}
+
+bool loadWorld(GameMap& gameMap, EntityHolder& entities, Player& player)
+{
+	gameMap = {};
+	entities.entities.clear();
+	player = {};
+	entities.idHolder = {};
+
+	if (!loadBlockDataFromFile(gameMap.mapData, gameMap.w, gameMap.h, RESOURCES_PATH "../saves/world.bin"))
+	{
+		return false;
+	}
+
+	//id holder
+	{
+		std::ifstream f(RESOURCES_PATH "../saves/idHolder.txt");
+
+		if (!f.is_open()) { return false; }
+		f >> entities.idHolder.idCounter;
+		f.close();
+	}
+
+	//player
+	{
+		std::ifstream f(RESOURCES_PATH "../saves/player.txt");
+		if (!f.is_open()) { return false; }
+
+		Json j;
+		j = Json::parse(f, nullptr, /*allow_exceptions=*/false);
+
+		if (!player.loadFromJson(j))
+		{
+			return false;
+		}
+	}
+
+	//entities
+	{
+		std::ifstream f(RESOURCES_PATH "../saves/entities.txt");
+		if (!f.is_open()) { return false; }
+
+		Json j;
+		j = Json::parse(f, nullptr, /*allow_exceptions=*/false);
+
+		for (auto it = j.begin(); it != j.end(); ++it)
+		{
+			const std::string& keyStr = it.key();
+			bool isNumeric = !keyStr.empty() && std::all_of(keyStr.begin(), keyStr.end(), ::isdigit);
+
+			if (!isNumeric)
+				continue; // skip non-numeric keys
+
+			std::uint64_t id = 0;
+
+			for (auto c : keyStr)
+			{
+				id *= 10;
+				id += c - '0';
+			}
+
+			Json& entityJson = it.value();
+
+			int entityType = 0;
+
+			if (entityJson["entityType"].is_number())
+			{
+				entityType = entityJson["entityType"];
+
+				switch (entityType)
+				{
+					case EntityType_Slime:
+					{
+						Slime slime;
+						if (slime.loadFromJson(entityJson))
+						{
+							entities.entities[id] = std::make_unique<Slime>(slime);
+						}
+						break;
+					}
+
+					case EntityType_DroppedItem:
+					{
+						DroppedItem droppedItem;
+						if (droppedItem.loadFromJson(entityJson))
+						{
+							entities.entities[id] = std::make_unique<DroppedItem>(droppedItem);
+						}
+						break;
+					}
+				}
+			}
+		}
+	}
+
 	return true;
 }

@@ -55,6 +55,9 @@ void generateWorld(GameMap& gameMap, int seed)
 	int desertEnd = desertStart + 100 + getRandomInt(rng, 100, 200);
 	if (desertEnd > w) { desertEnd = w;  }
 
+	gameMap.desertStart = desertStart;
+	gameMap.desertEnd = desertEnd;
+
 	Structure treeStructure;
 	bool treeLoaded = loadBlockDataFromFile(treeStructure.mapData, treeStructure.w, treeStructure.h, RESOURCES_PATH "structures/tree.bin");
 

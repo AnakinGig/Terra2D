@@ -12,8 +12,7 @@ struct Slime : Entity
 {
 	Slime()
 	{
-		physics.transform.w = 0.8f;
-		physics.transform.h = 0.8f;
+		setColliderSize();
 
 		life = getMaxLife();
 	}
@@ -30,6 +29,16 @@ struct Slime : Entity
 	bool update(float deltaTime, EntityUpdateData entityUpdateData) override;
 
 	int getEntityType() { return EntityType_Slime; }
+
+	Json formatToJson();
+
+	bool loadFromJson(Json & j);
+
+	void setColliderSize()
+	{
+		physics.transform.w = 0.8f;
+		physics.transform.h = 0.8f;
+	}
 
 	float getMaxLife() { return 10; }
 

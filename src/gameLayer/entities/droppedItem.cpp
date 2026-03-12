@@ -53,3 +53,43 @@ bool DroppedItem::update(float deltaTime, EntityUpdateData entityUpdateData)
 
 	return true;
 }
+
+Json DroppedItem::formatToJson()
+{
+	Json j;
+	addCommonEntityStuffToJson(j);
+
+	j["itemType"] = itemType;
+	j["itemCounter"] = itemCounter;
+
+	return j;
+}
+
+bool DroppedItem::loadFromJson(Json& j)
+{
+	if (!loadCommonEntityStuffFromJson(j)) { return false; }
+
+	if (j["itemType"].is_number())
+	{
+		itemType = j["itemType"];
+		if (itemType < 0 || itemType > Item::LAST_ITEM) { return false; }
+	}
+	else
+	{
+		return false;
+	}
+
+	if (j["itemCounter"].is_number())
+	{
+		itemCounter = j["itemCounter"];
+		if (itemCounter < 0) { return false; }
+	}
+	else
+	{
+		return false;
+	}
+
+	setColliderSize();
+
+	return true;
+}

@@ -102,3 +102,24 @@ bool Slime::update(float deltaTime, EntityUpdateData entityUpdateData)
 
 	return true;
 }
+
+Json Slime::formatToJson()
+{
+	Json j;
+	addCommonEntityStuffToJson(j);
+
+	// todo add slime states
+
+	return j;
+}
+
+bool Slime::loadFromJson(Json& j)
+{
+	*this = {};
+
+	bool rez = loadCommonEntityStuffFromJson(j);
+
+	setColliderSize();
+
+	return rez;
+}

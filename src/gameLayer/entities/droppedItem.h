@@ -12,8 +12,7 @@ struct DroppedItem : Entity
 {
 	DroppedItem()
 	{
-		physics.transform.w = 0.8f;
-		physics.transform.h = 0.8f;
+		setColliderSize();
 	}
 
 	int itemType = 0;
@@ -24,6 +23,16 @@ struct DroppedItem : Entity
 	bool update(float deltaTime, EntityUpdateData entityUpdateData);
 	
 	int getEntityType() { return EntityType_DroppedItem; }
+
+	Json formatToJson();
+
+	bool loadFromJson(Json& j);
+
+	void setColliderSize()
+	{
+		physics.transform.w = 0.8f;
+		physics.transform.h = 0.8f;
+	}
 
 	float getMaxLife() { return 1; }
 };

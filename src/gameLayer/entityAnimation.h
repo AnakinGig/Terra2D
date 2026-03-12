@@ -6,6 +6,7 @@ struct EntityAnimation
 	int positionY = 0;
 
 	float timer = 0;
+	bool movingLeft = 0;
 
 	void update(float deltaTime, float frameDuration, int framesCount)
 	{

@@ -20,11 +20,24 @@
 #include <items.h>
 #include <audio.h>
 #include <settings.h>
+#include <drawBackground.h>
+
+/*
+TODO : 
+
+Implement proper saving : 
+- Separate save map and entities
+- Save map every x blocs update
+- Save entities every x seconds
+- Save everything every x minutes
+
+*/
 
 struct GameData
 {
 	GameMap gameMap;
 	Camera2D camera = {};
+	DrawBackground background;
 
 	int creativeSelectedBlock = Block::dirt;
 
@@ -69,8 +82,11 @@ void spawnDroppedItem(Vector2 position, int type)
 
 bool initGame()
 {
+	loadWorld(gameData.gameMap, gameData.entities, gameData.player);
+
 	Audio::init();
 	assetManager.loadAll();
+	loadSettings();
 
 	generateWorld(gameData.gameMap);
 
@@ -91,6 +107,8 @@ bool initGame()
 bool updateGame()
 {
 	Audio::update();
+	updateSettings();
+
 	float deltaTime = GetFrameTime();
 	if (deltaTime > 1.f / 5) { deltaTime = 1 / 5.f; }
 
@@ -103,12 +121,69 @@ bool updateGame()
 #pragma region camera movement
 
 	static float CAMERA_SPEED = 10;
-	if (IsKeyDown(KEY_A)) { gameData.player.physics.transform.pos.x -= CAMERA_SPEED * GetFrameTime(); }
-	if (IsKeyDown(KEY_D)) { gameData.player.physics.transform.pos.x += CAMERA_SPEED * GetFrameTime(); }
-	if (IsKeyDown(KEY_W)) { gameData.player.physics.transform.pos.y -= CAMERA_SPEED * GetFrameTime(); }
-	if (IsKeyDown(KEY_S)) { gameData.player.physics.transform.pos.y += CAMERA_SPEED * GetFrameTime(); }
+	static bool creative = false;
 
-	if (IsKeyDown(KEY_SPACE)) { gameData.player.physics.jump(10); }
+	bool moving = false;
+	bool falling = false;
+
+	if (IsKeyDown(KEY_A)) 
+	{ 
+		gameData.player.physics.transform.pos.x -= CAMERA_SPEED * GetFrameTime();
+		moving = true;
+		gameData.player.animations.movingLeft = true;
+	
+	}
+	if (IsKeyDown(KEY_D)) 
+	{ 
+		gameData.player.physics.transform.pos.x += CAMERA_SPEED * GetFrameTime();
+		moving = true;
+		gameData.player.animations.movingLeft = false;
+
+	}
+	if (creative)
+	{
+		if (IsKeyDown(KEY_W)) 
+		{ 
+			gameData.player.physics.transform.pos.y -= CAMERA_SPEED * GetFrameTime();
+			moving = true;
+		}
+
+		if (IsKeyDown(KEY_S)) 
+		{
+			gameData.player.physics.transform.pos.y += CAMERA_SPEED * GetFrameTime();
+			moving = true;
+		}
+	}
+
+	if (IsKeyDown(KEY_SPACE)) 
+	{
+		gameData.player.physics.jump(12.0); 
+	}
+
+	if (gameData.player.physics.downTouch)
+	{
+		falling = false;
+	}
+	else 
+	{
+		falling = true;
+	}
+
+	if (falling)
+	{
+		gameData.player.animations.setAnimation(2);
+
+	}
+	else if (moving)
+	{
+		gameData.player.animations.setAnimation(1);
+	}
+	else
+	{
+		gameData.player.animations.setAnimation(0);
+	}
+
+	gameData.player.animations.update(deltaTime, 0.08, 7);
 
 #pragma endregion
 
@@ -126,7 +201,7 @@ bool updateGame()
 		};
 
 	//player
-	updateEntityPhysics(gameData.player, false);
+	updateEntityPhysics(gameData.player, !creative);
 
 	gameData.camera.target = gameData.player.physics.transform.pos;
 
@@ -266,6 +341,27 @@ bool updateGame()
 	}
 
 #pragma region draw world
+	//Biome related stuff
+	int backgroundType = DrawBackground::forest;
+	Audio::playMusic(Audio::musicForest);
+
+	if (gameData.player.getPosition().x > gameData.gameMap.desertStart &&
+		gameData.player.getPosition().x < gameData.gameMap.desertEnd)
+	{
+		backgroundType = DrawBackground::desert;
+		Audio::playMusic(Audio::musicDesert);
+	}
+	if (gameData.player.getPosition().y > 120)
+	{
+		backgroundType = DrawBackground::cave;
+		Audio::playMusic(Audio::musicCave);
+	}
+
+	gameData.background.setBackground(backgroundType);
+
+	gameData.background.draw(deltaTime, assetManager, gameData.camera, { (float)gameData.gameMap.w, (float)gameData.gameMap.h });
+	
+	//draw rest of the world
 	BeginMode2D(gameData.camera);
 
 	Vector2 topLeftView = GetScreenToWorld2D({ 0, 0 }, gameData.camera);
@@ -344,21 +440,8 @@ bool updateGame()
 		e.second->render(assetManager);
 	}
 
-	//Player sprite
-	Transform2D playerSprite = gameData.player.physics.transform;
-	playerSprite.w = 1;
-	playerSprite.h = 2;
-
-	playerSprite.pos.y -= (playerSprite.h - gameData.player.physics.transform.h) / 2;
-
-	DrawTexturePro(
-		assetManager.player,
-		{ 0, 0, (float)assetManager.player.width, (float)assetManager.player.height },
-		playerSprite.getAABB(),
-		{ 0, 0 },	//origin
-		0.0f, //rotation
-		WHITE //tint
-	);
+	//Player
+	gameData.player.render(assetManager);
 
 	DrawRectangleLinesEx(gameData.player.physics.transform.getAABB(), 0.1, {20, 101, 250, 120});
 
@@ -370,6 +453,7 @@ bool updateGame()
 
 		ImGui::SliderFloat("Camera zoom", &gameData.camera.zoom, 1, 150);
 		ImGui::SliderFloat("Camera speed", &CAMERA_SPEED, 5, 200);
+		ImGui::Checkbox("Creative mode", &creative);
 
 		if (ImGui::Button("Spawn Slime"))
 		{
@@ -420,15 +504,27 @@ bool updateGame()
 		ImGui::SliderFloat("Sound volume", &getSettings().soundsVolume, 0, 1);
 		ImGui::SliderFloat("Music volume", &getSettings().musicVolume, 0, 1);
 
-
-		if (ImGui::Button("Play music forest"))
+		if (ImGui::Button("Save settings"))
 		{
-			Audio::playMusic(Audio::musicForest);
+			saveSettings();
+		}
+		if (ImGui::Button("Load settings"))
+		{
+			loadSettings();
+		}
+
+
+		if (ImGui::Button("Save World"))
+		{
+			saveWorld(gameData.gameMap, gameData.entities, gameData.player);
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Play music desert"))
+		if (ImGui::Button("Load world"))
 		{
-			Audio::playMusic(Audio::musicDesert);
+			if (!loadWorld(gameData.gameMap, gameData.entities, gameData.player))
+			{
+				return false;
+			}
 		}
 
 		ImGui::Separator();
@@ -471,4 +567,5 @@ bool updateGame()
 // ========== CLOSE ==========
 void closeGame()
 {
+	saveWorld(gameData.gameMap, gameData.entities, gameData.player);
 }
